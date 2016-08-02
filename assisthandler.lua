@@ -33,20 +33,63 @@ function AssistHandler:Update()
 	local f = game:Frame()
 	if f > self.lastAllocation + 1800 then
 		self.lastAllocation = f
-		if self.ai.Metal.full > 0.33 then
-			self.ai.nonAssistantsPerName = math.max(self.ai.nonAssistantsPerName - 1, 2)
-		elseif self.ai.Metal.tics < 2 or self.ai.Metal.full < 0.1 then
-			self.ai.nonAssistantsPerName = math.min(self.ai.nonAssistantsPerName + 1, self.ai.conUnitPerTypeLimit)
+		local freeBuilder = {}
+		local totalbuilder = 0
+		local toplevel = 0
+		local maxAssistPerTypeLimit = {}
+		local totalassistantLimit = 0 
+		
+			for i,v in pairs(self.free) do
+				local uname = v.unit:Internal():Name()
+				totalbuilder = totalbuilder + 1
+				toplevel = math.max(unitTable[uname].techLevel , toplevel)
+				if not freeBuilder[uname] then
+					freeBuilder[uname] = 1
+					maxAssistPerTypeLimit[uname] = 999
+				else
+					freeBuilder[uname] = freeBuilder[uname] + 1
+				end
+				
+					
+			end
+			for i,v in pairs(freeBuilder) do
+				
+				--print(tostring('total ' .. i ..' = ' ..ai.nameCount[i] .. ' free = ' .. freeBuilder[i]))
+				limitLevelFactor= unitTable[i].techLevel / toplevel
+				local BuildablePerTypeFactor = 1
+				if unitTable[i].techLevel < 3 then
+					BuildablePerTypeFactor = ai.nameCount[i] / ai.conUnitPerTypeLimit 
+				else
+					BuildablePerTypeFactor = ai.nameCount[i] / ai.conUnitAdvPerTypeLimit
+				end
+				
+				maxAssistPerTypeLimit[i] = ai.nameCount[i] * ((BuildablePerTypeFactor + limitLevelFactor) / 2)
+				if ai.normalReserves then maxAssistPerTypeLimit[i] = maxAssistPerTypeLimit[i] /2 end
+				print(tostring(i .. ' limit' ..maxAssistPerTypeLimit[i] .. ' over ' .. ai.nameCount[i] .. ' current ' .. freeBuilder[i]))
+			end
+-- 		if ai.normalReserves  then
+-- 			self.ai.nonAssistantsPerName = math.max(self.ai.nonAssistantsPerName - 1, 2)
+-- 		else
+-- 			self.ai.nonAssistantsPerName = math.min(self.ai.nonAssistantsPerName + 1, )
+
 			for fi = #self.free, 1, -1 do
+				local unitName = self.free[fi].unit:Internal():Name()
 				local asstbehaviour = self.free[fi]
 				if self.ai.IDByName[asstbehaviour.id] == nil then self:AssignIDByName(asstbehaviour) end
-				if self.ai.IDByName[asstbehaviour.id] <= self.ai.nonAssistantsPerName then
+				if self.ai.IDByName[asstbehaviour.id] <= maxAssistPerTypeLimit[unitName] then
 					self.ai.nonAssistant[asstbehaviour.id] = true
 					asstbehaviour.unit:ElectBehaviour()
+					print(tostring(unitName .. ' removed from free'))
 					table.remove(self.free, fi)
+					break
+					
+				else
+					self:Release(self.free[fi].unit:Internal())
+					print(tostring(unitName .. ' added to free'))
+					break
 				end
 			end
-		end
+		print(tostring(("nonassistants per name: " .. self.ai.nonAssistantsPerName)))
 		EchoDebug("nonassistants per name: " .. self.ai.nonAssistantsPerName)
 	end
 end
